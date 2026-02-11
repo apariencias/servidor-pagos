@@ -1,13 +1,13 @@
 const express = require('express');
 const stripe = require('stripe');
 const cors = require('cors');
-require('dotenv').config();
+require('dotenv').config(); // Esto es para tu desarrollo local, Render usará sus propias variables.
 
 const app = express();
 
-// --- CONFIGURACIÓN CORS EXPLÍCITA ---
+// --- CONFIGURACIÓN CORS (ACTUALIZADA PARA DESPLIEGUE) ---
 const corsOptions = {
-    origin: ['http://localhost:5500', 'file://'], // Permite peticiones desde Live Server y archivos locales
+    origin: '*', // Permite peticiones de cualquier origen para pruebas. ¡AJUSTAR EN PRODUCCIÓN!
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     credentials: true,
     optionsSuccessStatus: 204
@@ -21,7 +21,7 @@ app.get('/api/test', (req, res) => {
     res.send('¡Hola desde el servidor! Estoy vivo y funcionando.');
 });
 
-// --- RUTA DE PAGO CON MÁS PISTAS ---
+// --- RUTA DE PAGO ---
 app.post('/api/create-checkout-session', async (req, res) => {
     console.log("🚨 Petición POST recibida en /api/create-checkout-session");
 
@@ -39,6 +39,7 @@ app.post('/api/create-checkout-session', async (req, res) => {
             payment_method_types: ['card'],
             mode: 'payment',
             line_items: [{ price_data: { currency: 'usd', product_data: { name: 'Entrenamiento Mental', description: 'Sesión personalizada.' }, unit_amount: 2000, }, quantity: 1, }],
+            // NOTA: Estas URLs deberán actualizarse cuando tengas tu frontend en línea.
             success_url: `http://localhost:5500/success.html`,
             cancel_url: `http://localhost:5500/cancel.html`,
         });
@@ -53,5 +54,5 @@ app.post('/api/create-checkout-session', async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`);
+    console.log(`🚀 Servidor corriendo en el puerto ${PORT}`);
 });
