@@ -39,9 +39,9 @@ app.post('/api/create-checkout-session', async (req, res) => {
             payment_method_types: ['card'],
             mode: 'payment',
             line_items: [{ price_data: { currency: 'usd', product_data: { name: 'Entrenamiento Mental', description: 'Sesión personalizada.' }, unit_amount: 2000, }, quantity: 1, }],
-            // NOTA: Estas URLs deberán actualizarse cuando tengas tu frontend en línea.
-            success_url: `http://localhost:5500/success.html`,
-            cancel_url: `http://localhost:5500/cancel.html`,
+            // ESTAS LÍNEAS ESTÁN BIEN
+success_url: `https://entrenadormental.netlify.app/success.html`,
+cancel_url: `https://entrenadormental.netlify.app/cancel.html`,
         });
         console.log("✅ Sesión de Stripe creada con éxito:", session.id);
         res.json({ url: session.url });
