@@ -5,6 +5,8 @@ require('dotenv').config(); // Esto es para tu desarrollo local, Render usará s
 
 const app = express();
 
+app.use(express.static('.'));
+
 // --- CONFIGURACIÓN CORS (ACTUALIZADA PARA DESPLIEGUE) ---
 const corsOptions = {
     origin: '*', // Permite peticiones de cualquier origen para pruebas. ¡AJUSTAR EN PRODUCCIÓN!
@@ -23,14 +25,7 @@ app.get('/api/test', (req, res) => {
 
 // --- RUTA DE PAGO ---
 app.post('/api/create-checkout-session', async (req, res) => {
-    console.log("🚨 Petición POST recibida en /api/create-checkout-session");
-
-    if (!process.env.STRIPE_SECRET_KEY) {
-        console.error("❌ ERROR GRAVE: STRIPE_SECRET_KEY no está definida.");
-        return res.status(500).json({ error: { message: "La configuración del servidor es incorrecta (falta la clave de Stripe)." } });
-    }
-    console.log("✅ Clave de Stripe encontrada en el servidor.");
-
+    // ... (el resto del código de arriba se queda igual) ...
     const stripeInstance = stripe(process.env.STRIPE_SECRET_KEY);
 
     try {
@@ -38,10 +33,20 @@ app.post('/api/create-checkout-session', async (req, res) => {
         const session = await stripeInstance.checkout.sessions.create({
             payment_method_types: ['card'],
             mode: 'payment',
-            line_items: [{ price_data: { currency: 'usd', product_data: { name: 'Entrenamiento Mental', description: 'Sesión personalizada.' }, unit_amount: 2000, }, quantity: 1, }],
-            // ESTAS LÍNEAS ESTÁN BIEN
-success_url: `https://entrenadormental.netlify.app/success.html`,
-cancel_url: `https://entrenadormental.netlify.app/cancel.html`,
+            line_items: [{ 
+                price_data: { 
+                    currency: 'usd', // Asegúrate que esta sea tu moneda
+                    product_data: { 
+                        name: 'Entrenamiento Mental', 
+                        description: 'Sesión personalizada.' 
+                    }, 
+                    unit_amount: 2000, // 20.00 USD (en centavos)
+                }, 
+                quantity: 1, 
+            }],
+            // >>>> CORRECCIÓN AQUÍ <<<<<
+            success_url: `https://servidor-pagos.onrender.com/success.html`,
+            cancel_url: `https://servidor-pagos.onrender.com/cancel.html`,
         });
         console.log("✅ Sesión de Stripe creada con éxito:", session.id);
         res.json({ url: session.url });
@@ -50,9 +55,4 @@ cancel_url: `https://entrenadormental.netlify.app/cancel.html`,
         console.error("❌ ERROR al crear la sesión de Stripe:", error.message);
         res.status(500).json({ error: { message: error.message } });
     }
-});
-
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`🚀 Servidor corriendo en el puerto ${PORT}`);
 });
