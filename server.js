@@ -1,58 +1,58 @@
-const express = require('express');
-const stripe = require('stripe');
-const cors = require('cors');
-require('dotenv').config(); // Esto es para tu desarrollo local, Render usará sus propias variables.
+// 1. Cargar las variables de entorno desde el archivo .env
+require('dotenv').config();
 
+// 2. Importar las librerías necesarias
+const express = require('express');
+const cors = require('cors');
+
+// 3. Inicializar Stripe con tu CLAVE SECRETA
+//    ¡ESTA LÍNEA ES LA QUE FALTABA Y LA MÁS IMPORTANTE!
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+
+// 4. Crear la aplicación de Express
 const app = express();
 
-app.use(express.static('.'));
+// 5. Middleware (Configuración)
+app.use(cors()); // Permite peticiones desde otros dominios (tu frontend)
+app.use(express.json()); // Permite a Express entender JSON
 
-// --- CONFIGURACIÓN CORS (ACTUALIZADA PARA DESPLIEGUE) ---
-const corsOptions = {
-    origin: '*', // Permite peticiones de cualquier origen para pruebas. ¡AJUSTAR EN PRODUCCIÓN!
-    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
-    credentials: true,
-    optionsSuccessStatus: 204
-};
-app.use(cors(corsOptions));
-app.use(express.json());
-
-// --- RUTA DE PRUEBA ---
-app.get('/api/test', (req, res) => {
-    console.log("✅ Petición recibida en /api/test");
-    res.send('¡Hola desde el servidor! Estoy vivo y funcionando.');
+// 6. Rutas de la API
+app.get('/', (req, res) => {
+    res.send('Servidor de pagos funcionando correctamente.');
 });
 
-// --- RUTA DE PAGO ---
-app.post('/api/create-checkout-session', async (req, res) => {
-    // ... (el resto del código de arriba se queda igual) ...
-    const stripeInstance = stripe(process.env.STRIPE_SECRET_KEY);
-
+app.post('/create-checkout-session', async (req, res) => {
     try {
-        console.log("⏳ Intentando crear la sesión de Stripe...");
-        const session = await stripeInstance.checkout.sessions.create({
+        const { product } = req.body;
+
+        const session = await stripe.checkout.sessions.create({
             payment_method_types: ['card'],
-            mode: 'payment',
-            line_items: [{ 
-                price_data: { 
-                    currency: 'usd', // Asegúrate que esta sea tu moneda
-                    product_data: { 
-                        name: 'Entrenamiento Mental', 
-                        description: 'Sesión personalizada.' 
-                    }, 
-                    unit_amount: 2000, // 20.00 USD (en centavos)
-                }, 
-                quantity: 1, 
+            line_items: [{
+                price_data: {
+                    currency: 'eur',
+                    product_data: {
+                        name: product.name,
+                    },
+                    unit_amount: product.price * 100, // El precio debe estar en céntimos
+                },
+                quantity: 1,
             }],
-            // >>>> CORRECCIÓN AQUÍ <<<<<
+            mode: 'payment',
+            // URLs a las que Stripe redirigirá después del pago
             success_url: `https://servidor-pagos.onrender.com/success.html`,
             cancel_url: `https://servidor-pagos.onrender.com/cancel.html`,
         });
-        console.log("✅ Sesión de Stripe creada con éxito:", session.id);
-        res.json({ url: session.url });
+
+        res.json({ id: session.id });
 
     } catch (error) {
-        console.error("❌ ERROR al crear la sesión de Stripe:", error.message);
+        console.error("Error al crear la sesión de Stripe:", error);
         res.status(500).json({ error: { message: error.message } });
     }
+});
+
+// 7. Iniciar el servidor
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+    console.log(`🚀 Servidor corriendo en el puerto ${PORT}`);
 });
