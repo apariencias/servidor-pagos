@@ -1,6 +1,15 @@
 // 1. Cargar las variables de entorno desde el archivo .env
 require('dotenv').config();
 
+require('dotenv').config();
+
+// --- LÍNEA DE DEPURACIÓN FINAL ---
+console.log('>>> DIAGNÓSTICO: La variable STRIPE_SECRET_KEY es:', process.env.STRIPE_SECRET_KEY);
+// --- FIN DE LA LÍNEA DE DEPURACIÓN ---
+
+const express = require('express');
+// ... el resto del código
+
 // 2. Importar las librerías necesarias
 const express = require('express');
 const cors = require('cors');
