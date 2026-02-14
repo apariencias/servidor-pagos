@@ -1,31 +1,24 @@
 // 1. Cargar las variables de entorno desde el archivo .env
 require('dotenv').config();
 
-require('dotenv').config();
-
 // --- LÍNEA DE DEPURACIÓN FINAL ---
+// Esta línea nos ayudará a confirmar si la clave de Stripe se está cargando correctamente.
 console.log('>>> DIAGNÓSTICO: La variable STRIPE_SECRET_KEY es:', process.env.STRIPE_SECRET_KEY);
 // --- FIN DE LA LÍNEA DE DEPURACIÓN ---
 
-const express = require('express');
-// ... el resto del código
-
-// 2. Importar las librerías necesarias
+// 2. Importar las dependencias necesarias
 const express = require('express');
 const cors = require('cors');
-
-// 3. Inicializar Stripe con tu CLAVE SECRETA
-//    ¡ESTA LÍNEA ES LA QUE FALTABA Y LA MÁS IMPORTANTE!
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
-// 4. Crear la aplicación de Express
+// 3. Crear la aplicación de Express
 const app = express();
 
-// 5. Middleware (Configuración)
+// 4. Middleware (Configuración)
 app.use(cors()); // Permite peticiones desde otros dominios (tu frontend)
-app.use(express.json()); // Permite a Express entender JSON
+app.use(express.json()); // Permite a Express entender JSON en el cuerpo de las peticiones
 
-// 6. Rutas de la API
+// 5. Rutas de la API
 app.get('/', (req, res) => {
     res.send('Servidor de pagos funcionando correctamente.');
 });
@@ -48,6 +41,7 @@ app.post('/create-checkout-session', async (req, res) => {
             }],
             mode: 'payment',
             // URLs a las que Stripe redirigirá después del pago
+            // IMPORTANTE: Cambia estas URLs por las de tu sitio web en producción
             success_url: `https://servidor-pagos.onrender.com/success.html`,
             cancel_url: `https://servidor-pagos.onrender.com/cancel.html`,
         });
@@ -60,8 +54,8 @@ app.post('/create-checkout-session', async (req, res) => {
     }
 });
 
-// 7. Iniciar el servidor
-const PORT = process.env.PORT || 3000;
+// 6. Iniciar el servidor
+const PORT = process.env.PORT || 3000; // Render asignará el puerto a través de la variable de entorno PORT
 app.listen(PORT, () => {
     console.log(`🚀 Servidor corriendo en el puerto ${PORT}`);
 });
