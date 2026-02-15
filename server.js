@@ -9,7 +9,6 @@ const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const app = express();
 
 // --- CONFIGURACIÓN DE CORS (EL GUARDIA DE SEGURIDAD) ---
-// Le decimos al navegador que confíe en las peticiones desde tu sitio web.
 const cors = require('cors');
 const corsOptions = {
     origin: 'https://entrenadormental.netlify.app', // <-- ¡LA URL DE TU FRONTEND!
@@ -20,7 +19,6 @@ const corsOptions = {
 app.use(cors(corsOptions));
 // --- FIN DE LA CONFIGURACIÓN DE CORS ---
 
-
 // 4. Middleware para que Express entienda JSON
 app.use(express.json());
 
@@ -30,7 +28,6 @@ app.get('/', (req, res) => {
 });
 
 // --- INICIO: RUTA DE SALUD PARA RENDER ---
-// Render necesita una ruta que responda con "200 OK" para verificar que el servicio está vivo.
 app.get('/api/test', (req, res) => {
     res.status(200).send('OK');
 });
@@ -38,42 +35,51 @@ app.get('/api/test', (req, res) => {
 
 app.post('/create-checkout-session', async (req, res) => {
     try {
-        const { product } = req.body;
+        // Recibimos los datos que envía el frontend
+        const { name, email, whatsapp, product } = req.body;
 
-        // Validación básica para asegurar que se envió un producto
-        if (!product || !product.name || !product.price) {
-            return res.status(400).json({ error: { message: 'Faltan datos del producto (nombre y precio).' } });
+        // --- VALIDACIÓN Y DEFINICIÓN DEL PRODUCTO EN EL SERVIDOR ---
+        // Es más seguro definir el precio aquí en el backend.
+        let productDetails;
+        if (product === 'la-calma-de-mama') {
+            productDetails = {
+                name: 'Inscripción a "La Calma de Mamá"',
+                price: 27.00, // Precio en euros
+            };
+        } else {
+            return res.status(400).json({ error: { message: 'Producto no válido.' } });
         }
+        // --- FIN DE LA DEFINICIÓN ---
 
         const session = await stripe.checkout.sessions.create({
             payment_method_types: ['card'],
+            customer_email: email, // Pre-llenamos el email en Stripe
             line_items: [{
                 price_data: {
-                    currency: 'eur', // Asegúrate de que esta es la moneda correcta
+                    currency: 'eur',
                     product_data: {
-                        name: product.name,
+                        name: productDetails.name,
                     },
-                    unit_amount: product.price * 100, // Stripe trabaja en céntimos (ej: 10.00€ = 1000)
+                    unit_amount: productDetails.price * 100, // Convertimos a céntimos
                 },
                 quantity: 1,
             }],
             mode: 'payment',
-            // URLs a las que Stripe redirigirá después del pago.
-            // Deben ser URLs públicas y accesibles.
             success_url: `https://servidor-pagos.onrender.com/success.html`,
             cancel_url: `https://servidor-pagos.onrender.com/cancel.html`,
         });
 
-        res.json({ id: session.id });
+        // --- CAMBIO CLAVE: DEVOLVEMOS LA URL DE LA SESIÓN ---
+        res.json({ url: session.url });
 
     } catch (error) {
         console.error("Error al crear la sesión de Stripe:", error);
-        res.status(500).json({ error: { message: error.message } });
+        res.status(500).json({ error: { message: 'Error interno del servidor.' } });
     }
 });
 
 // 6. Iniciar el servidor
-const PORT = process.env.PORT || 3000; // Render asignará el puerto a través de la variable de entorno PORT
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`🚀 Servidor corriendo en el puerto ${PORT}`);
 });
