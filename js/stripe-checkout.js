@@ -43,7 +43,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             try {
                 // >>>> CORRECCIÓN #1: URL REAL DEL SERVIDOR <<<<<
-                const response = await fetch('https://servidor-pagos.onrender.com/api/create-checkout-session', {
+                const response = await fetch('https://servidor-pagos.onrender.com/create-checkout-session', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',

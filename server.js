@@ -1,23 +1,28 @@
 // 1. Cargar las variables de entorno desde el archivo .env
 require('dotenv').config();
 
-// --- LÍNEA DE DEPURACIÓN ---
-// Esta línea confirma que la clave de Stripe se está cargando.
-// Puedes eliminarla después de que todo funcione.
-console.log('>>> DIAGNÓSTICO: La variable STRIPE_SECRET_KEY está cargada.');
-// --- FIN DE LA LÍNEA DE DEPURACIÓN ---
-
 // 2. Importar las dependencias necesarias
 const express = require('express');
-const cors = require('cors');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 // 3. Crear la aplicación de Express
 const app = express();
 
-// 4. Middleware (Configuración)
-app.use(cors()); // Permite peticiones desde otros dominios (tu frontend)
-app.use(express.json()); // Permite a Express entender JSON en el cuerpo de las peticiones
+// --- CONFIGURACIÓN DE CORS (EL GUARDIA DE SEGURIDAD) ---
+// Le decimos al navegador que confíe en las peticiones desde tu sitio web.
+const cors = require('cors');
+const corsOptions = {
+    origin: 'https://entrenadormental.netlify.app', // <-- ¡LA URL DE TU FRONTEND!
+    methods: 'GET,POST,OPTIONS',
+    allowedHeaders: 'Content-Type, Authorization',
+    optionsSuccessStatus: 200
+};
+app.use(cors(corsOptions));
+// --- FIN DE LA CONFIGURACIÓN DE CORS ---
+
+
+// 4. Middleware para que Express entienda JSON
+app.use(express.json());
 
 // 5. Rutas de la API
 app.get('/', (req, res) => {
@@ -26,7 +31,6 @@ app.get('/', (req, res) => {
 
 // --- INICIO: RUTA DE SALUD PARA RENDER ---
 // Render necesita una ruta que responda con "200 OK" para verificar que el servicio está vivo.
-// Esta ruta satisface ese requisito.
 app.get('/api/test', (req, res) => {
     res.status(200).send('OK');
 });
