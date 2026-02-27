@@ -11,7 +11,12 @@ const app = express();
 // --- CONFIGURACIÓN DE CORS (EL GUARDIA DE SEGURIDAD) ---
 const cors = require('cors');
 const corsOptions = {
-    origin: 'https://entrenadormental.netlify.app', // <-- ¡LA URL DE TU FRONTEND!
+    origin: [
+        'https://entrenadormental.netlify.app', // <-- Tu sitio en producción
+        'http://127.0.0.1:5500',                  // <-- Tu servidor local de Live Server (antiguo)
+        'http://127.0.0.1:8080',                  // <-- ¡AÑADE ESTA LÍNEA!
+        'http://localhost:8080'                   // <-- ¡Y ESTA OTRA!
+    ],
     methods: 'GET,POST,OPTIONS',
     allowedHeaders: 'Content-Type, Authorization',
     optionsSuccessStatus: 200
@@ -33,15 +38,26 @@ app.get('/api/test', (req, res) => {
 });
 // --- FIN: RUTA DE SALUD ---
 
-app.post('/create-checkout-session', async (req, res) => {
+app.post('/api/create-checkout-session', async (req, res) => {
     try {
+        // --- CAMBIO 1: RECIBIMOS LOS DATOS CORRECTAMENTE Y LOS MOSTRAMOS ---
         // Recibimos los datos que envía el frontend
-        const { name, email, whatsapp, product } = req.body;
+        const { name, email, whatsapp, items } = req.body; // Cambiamos 'product' por 'items'
+        
+        // ESTA LÍNEA ES CLAVE PARA QUE VEAS LOS DATOS
+        console.log('🔍 Datos recibidos del frontend:', { name, email, whatsapp, items });
+
+        // Validamos que se hayan enviado los items
+        if (!items || items.length === 0) {
+            return res.status(400).json({ error: { message: 'No se especificó ningún producto.' } });
+        }
+        
+        // Obtenemos el ID del primer item del carrito
+        const productId = items[0].id;
 
         // --- VALIDACIÓN Y DEFINICIÓN DEL PRODUCTO EN EL SERVIDOR ---
-        // Es más seguro definir el precio aquí en el backend.
         let productDetails;
-        if (product === 'la-calma-de-mama') {
+        if (productId === 'la-calma-de-mama') { // Usamos el productId que recibimos
             productDetails = {
                 name: 'Inscripción a "La Calma de Mamá"',
                 price: 27.00, // Precio en euros
@@ -66,14 +82,15 @@ app.post('/create-checkout-session', async (req, res) => {
             }],
             mode: 'payment',
             success_url: `https://entrenadormental.netlify.app/success.html`,
-            cancel_url: `https://entrenadormental.netlify.app/cancel.html`,
+             cancel_url: `${process.env.FRONTEND_URL}/la-calma-de-mama.html?payment=cancelled`,
         });
 
-        // --- CAMBIO CLAVE: DEVOLVEMOS LA URL DE LA SESIÓN ---
-        res.json({ id:  session.id });
+        // --- CAMBIO 2: DEVOLVEMOS EL OBJETO SESIÓN COMPLETO ---
+        // El frontend necesita `session.url` para redirigir al usuario
+        res.json(session);
 
     } catch (error) {
-        console.error("Error al crear la sesión de Stripe:", error);
+        console.error("❌ Error al crear la sesión de Stripe:", error);
         res.status(500).json({ error: { message: 'Error interno del servidor.' } });
     }
 });
