@@ -4,18 +4,18 @@ require('dotenv').config();
 // 2. Importar las dependencias necesarias
 const express = require('express');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+const cors = require('cors');
 
 // 3. Crear la aplicación de Express
 const app = express();
 
 // --- CONFIGURACIÓN DE CORS (EL GUARDIA DE SEGURIDAD) ---
-const cors = require('cors');
+// Permite que tu frontend (Netlify) se comunique con este backend (Render)
 const corsOptions = {
     origin: [
-        'https://entrenadormental.netlify.app', // <-- Tu sitio en producción
-        'http://127.0.0.1:5500',                  // <-- Tu servidor local de Live Server (antiguo)
-        'http://127.0.0.1:8080',                  // <-- ¡AÑADE ESTA LÍNEA!
-        'http://localhost:8080'                   // <-- ¡Y ESTA OTRA!
+        'https://entrenadormental.netlify.app', // Tu sitio en producción
+        'http://127.0.0.1:5500',                 // Servidor local (si usas Live Server)
+        'http://localhost:8080'                  // Servidor local (alternativo)
     ],
     methods: 'GET,POST,OPTIONS',
     allowedHeaders: 'Content-Type, Authorization',
@@ -25,6 +25,7 @@ app.use(cors(corsOptions));
 // --- FIN DE LA CONFIGURACIÓN DE CORS ---
 
 // 4. Middleware para que Express entienda JSON
+// Esto es CLAVE para poder leer el body de las peticiones POST
 app.use(express.json());
 
 // 5. Rutas de la API
@@ -32,68 +33,57 @@ app.get('/', (req, res) => {
     res.send('Servidor de pagos funcionando correctamente.');
 });
 
-// --- INICIO: RUTA DE SALUD PARA RENDER ---
+// --- RUTA DE SALUD PARA RENDER (Health Check) ---
 app.get('/api/test', (req, res) => {
     res.status(200).send('OK');
 });
-// --- FIN: RUTA DE SALUD ---
+// --- FIN DE LA RUTA DE SALUD ---
 
+
+// --- INICIO: LA RUTA CORREGIDA ---
 app.post('/api/create-checkout-session', async (req, res) => {
     try {
-        // --- CAMBIO 1: RECIBIMOS LOS DATOS CORRECTAMENTE Y LOS MOSTRAMOS ---
-        // Recibimos los datos que envía el frontend
-        const { name, email, whatsapp, items } = req.body; // Cambiamos 'product' por 'items'
-        
-        // ESTA LÍNEA ES CLAVE PARA QUE VEAS LOS DATOS
-        console.log('🔍 Datos recibidos del frontend:', { name, email, whatsapp, items });
+        // 1. EXTRAEMOS EL PRICEID DEL BODY DE LA PETICIÓN
+        // El frontend nos envía { name, email, whatsapp, priceId }
+        const { name, email, whatsapp, priceId } = req.body;
 
-        // Validamos que se hayan enviado los items
-        if (!items || items.length === 0) {
-            return res.status(400).json({ error: { message: 'No se especificó ningún producto.' } });
+        // 2. VALIDAMOS QUE NOS HAYAN ENVIADO UN PRICEID
+        if (!priceId) {
+            console.error('Error: Falta el priceId en la petición.');
+            return res.status(400).json({ error: { message: 'No se especificó ningún precio (priceId).' }});
         }
-        
-        // Obtenemos el ID del primer item del carrito
-        const productId = items[0].id;
 
-        // --- VALIDACIÓN Y DEFINICIÓN DEL PRODUCTO EN EL SERVIDOR ---
-        let productDetails;
-        if (productId === 'la-calma-de-mama') { // Usamos el productId que recibimos
-            productDetails = {
-                name: 'Inscripción a "La Calma de Mamá"',
-                price: 27.00, // Precio en euros
-            };
-        } else {
-            return res.status(400).json({ error: { message: 'Producto no válido.' } });
-        }
-        // --- FIN DE LA DEFINICIÓN ---
+        // (Opcional) Log para depuración en los logs de Render
+        console.log('🔍 Datos recibidos del frontend:', { name, email, whatsapp, priceId });
 
+        // 3. CREAMOS LA SESIÓN DE PAGO CON STRIPE
         const session = await stripe.checkout.sessions.create({
             payment_method_types: ['card'],
-            customer_email: email, // Pre-llenamos el email en Stripe
-            line_items: [{
-                price_data: {
-                    currency: 'eur',
-                    product_data: {
-                        name: productDetails.name,
-                    },
-                    unit_amount: productDetails.price * 100, // Convertimos a céntimos
+            customer_email: email, // Pre-llenamos el email del cliente en Stripe
+            line_items: [
+                {
+                    // 4. ¡USAMOS DIRECTAMENTE EL PRICEID QUE RECIBIMOS!
+                    // Esto le dice a Stripe que use el producto y precio que ya configuraste en tu Dashboard.
+                    price: priceId,
+                    quantity: 1,
                 },
-                quantity: 1,
-            }],
+            ],
             mode: 'payment',
+            // URLs de redirección después del pago
             success_url: `https://entrenadormental.netlify.app/success.html`,
-             cancel_url: `${process.env.FRONTEND_URL}/la-calma-de-mama.html?payment=cancelled`,
+            cancel_url: `https://entrenadormental.netlify.app/la-calma-de-mama.html?payment=cancelled`,
         });
 
-        // --- CAMBIO 2: DEVOLVEMOS EL OBJETO SESIÓN COMPLETO ---
-        // El frontend necesita `session.url` para redirigir al usuario
+        // 5. DEVOLVEMOS LA SESIÓN CREADA AL FRONTEND
         res.json(session);
 
     } catch (error) {
         console.error("❌ Error al crear la sesión de Stripe:", error);
-        res.status(500).json({ error: { message: 'Error interno del servidor.' } });
+        res.status(500).json({ error: { message: 'Error interno del servidor al crear la sesión de pago.' }});
     }
 });
+// --- FIN: LA RUTA CORREGIDA ---
+
 
 // 6. Iniciar el servidor
 const PORT = process.env.PORT || 3000;
