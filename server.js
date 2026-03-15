@@ -5,9 +5,9 @@ require('dotenv').config(); // Carga las variables de entorno desde el archivo .
 const express = require('express');
 const cors = require('cors');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
-const nodemailer = require('nodemailer'); // Lo mantenemos importado
-const fs = require('fs'); // Lo mantenemos importado
-const path = require('path'); // Lo mantenemos importado
+const nodemailer = require('nodemailer'); // Se mantiene importado pero no se usa
+const fs = require('fs'); // Se mantiene importado pero no se usa
+const path = require('path'); // Se mantiene importado pero no se usa
 
 // --- INICIALIZACIÓN DE LA APLICACIÓN ---
 const app = express();
@@ -32,52 +32,18 @@ app.post('/api/create-checkout-session', async (req, res) => {
             return res.status(400).json({ error: { message: 'Faltan datos del cliente o el ID del precio.' }});
         }
 
-        // --- PASO DEPURACIÓN: COMENTADO PARA AISLAR EL ERROR ---
-        // Vamos a desactivar temporalmente el guardado de archivo y el email
-        // para ver si el problema está en la comunicación con Stripe.
-
+        // --- SECCIÓN DE DEPURACIÓN (COMENTADA) ---
+        // El problema está aquí. Comentamos para aislar el error.
         /*
         // --- PASO A: GUARDAR LOS DATOS EN UN ARCHIVO JSON ---
-        const nuevoRegistro = {
-            timestamp: new Date().toISOString(),
-            name,
-            email,
-            whatsapp,
-            priceId,
-            status: 'payment_initiated'
-        };
-
-        const rutaArchivo = path.join(__dirname, 'clientes.json');
-        
-        let clientes = [];
-        if (fs.existsSync(rutaArchivo)) {
-            const contenido = fs.readFileSync(rutaArchivo, 'utf-8');
-            clientes = contenido ? JSON.parse(contenido) : [];
-        }
-        
-        clientes.push(nuevoRegistro);
-        fs.writeFileSync(rutaArchivo, JSON.stringify(clientes, null, 2));
+        const nuevoRegistro = { /* ... */ };
+        // ... (código de archivo)
         console.log('✅ Cliente guardado en clientes.json.');
 
         // --- PASO B: ENVIAR UN EMAIL DE NOTIFICACIÓN ---
-        const transporter = nodemailer.createTransport({
-            service: 'gmail',
-            auth: {
-                user: process.env.EMAIL_USER,
-                pass: process.env.EMAIL_PASS,
-            },
-        });
-
-        const mailOptions = {
-            from: `"Notificación de Pago" <${process.env.EMAIL_USER}>`,
-            to: process.env.EMAIL_USER,
-            subject: '¡Nuevo cliente interesado en "La Calma de Mamá"!',
-            text: `Tienes un nuevo cliente potencial:\n\nNombre: ${name}\nEmail: ${email}\nWhatsApp: ${whatsapp}\n\nHa iniciado el proceso de pago.`,
-            html: `<h1>¡Nuevo cliente potencial!</h1><p>Tienes un nuevo cliente interesado en "La Calma de Mamá":</p><ul><li><strong>Nombre:</strong> ${name}</li><li><strong>Email:</strong> ${email}</li><li><strong>WhatsApp:</strong> ${whatsapp}</li></ul><p>Ha iniciado el proceso de pago.</p>`,
-        };
-
-        await transporter.sendMail(mailOptions);
-        console.log('✅ Email de notificación enviado a ' + process.env.EMAIL_USER);
+        const transporter = nodemailer.createTransport({ /* ... */ });
+        // ... (código de email)
+        console.log('✅ Email de notificación enviado.');
         */
         // --- FIN DE LA SECCIÓN COMENTADA ---
 
@@ -99,7 +65,7 @@ app.post('/api/create-checkout-session', async (req, res) => {
 
     } catch (error) {
         console.error("❌ Error al procesar la solicitud:", error);
-        res.status(500).json({ error: { message: 'Error interno del servidor.' }});
+        res.status(500).json({ error: { message: error.message }});
     }
 });
 
