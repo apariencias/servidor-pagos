@@ -1,91 +1,106 @@
-// 1. Cargar las variables de entorno desde el archivo .env
-require('dotenv').config();
+// server.js
 
-// 2. Importar las dependencias necesarias
+// --- IMPORTACIONES Y CONFIGURACIÓN INICIAL ---
+require('dotenv').config(); // Carga las variables de entorno desde el archivo .env
 const express = require('express');
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const cors = require('cors');
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+const nodemailer = require('nodemailer');
+const fs = require('fs'); // Módulo para interactuar con el sistema de archivos
+const path = require('path'); // Módulo para trabajar con rutas de archivos
 
-// 3. Crear la aplicación de Express
+// --- INICIALIZACIÓN DE LA APLICACIÓN ---
 const app = express();
 
-// --- CONFIGURACIÓN DE CORS (EL GUARDIA DE SEGURIDAD) ---
-// Permite que tu frontend (Netlify) se comunique con este backend (Render)
-const corsOptions = {
-    origin: [
-        'https://entrenadormental.netlify.app', // Tu sitio en producción
-        'http://127.0.0.1:5500',                 // Servidor local (si usas Live Server)
-        'http://localhost:8080'                  // Servidor local (alternativo)
-    ],
-    methods: 'GET,POST,OPTIONS',
-    allowedHeaders: 'Content-Type, Authorization',
-    optionsSuccessStatus: 200
-};
-app.use(cors(corsOptions));
-// --- FIN DE LA CONFIGURACIÓN DE CORS ---
+// --- MIDDLEWARE ---
+app.use(cors()); // Permite peticiones desde otros dominios (tu frontend)
+app.use(express.json()); // Permite al servidor entender JSON en el body de las peticiones
 
-// 4. Middleware para que Express entienda JSON
-// Esto es CLAVE para poder leer el body de las peticiones POST
-app.use(express.json());
-
-// 5. Rutas de la API
-app.get('/', (req, res) => {
-    res.send('Servidor de pagos funcionando correctamente.');
-});
-
-// --- RUTA DE SALUD PARA RENDER (Health Check) ---
-app.get('/api/test', (req, res) => {
+// --- RUTAS ---
+// Ruta de salud para verificar que el servidor está vivo
+app.get('/health', (req, res) => {
     res.status(200).send('OK');
 });
-// --- FIN DE LA RUTA DE SALUD ---
 
-
-// --- INICIO: LA RUTA CORREGIDA ---
+// Ruta principal para crear la sesión de pago de Stripe
 app.post('/api/create-checkout-session', async (req, res) => {
     try {
-        // 1. EXTRAEMOS EL PRICEID DEL BODY DE LA PETICIÓN
-        // El frontend nos envía { name, email, whatsapp, priceId }
+        // 1. Extraemos los datos del body de la petición
         const { name, email, whatsapp, priceId } = req.body;
 
-        // 2. VALIDAMOS QUE NOS HAYAN ENVIADO UN PRICEID
-        if (!priceId) {
-            console.error('Error: Falta el priceId en la petición.');
-            return res.status(400).json({ error: { message: 'No se especificó ningún precio (priceId).' }});
+        if (!name || !email || !whatsapp || !priceId) {
+            return res.status(400).json({ error: { message: 'Faltan datos del cliente o el ID del precio.' }});
         }
 
-        // (Opcional) Log para depuración en los logs de Render
-        console.log('🔍 Datos recibidos del frontend:', { name, email, whatsapp, priceId });
+        // --- PASO A: GUARDAR LOS DATOS EN UN ARCHIVO JSON ---
+        const nuevoRegistro = {
+            timestamp: new Date().toISOString(),
+            name,
+            email,
+            whatsapp,
+            priceId,
+            status: 'payment_initiated' // Estado inicial: pago iniciado
+        };
 
-        // 3. CREAMOS LA SESIÓN DE PAGO CON STRIPE
-        const session = await stripe.checkout.sessions.create({
-            payment_method_types: ['card'],
-            customer_email: email, // Pre-llenamos el email del cliente en Stripe
-            line_items: [
-                {
-                    // 4. ¡USAMOS DIRECTAMENTE EL PRICEID QUE RECIBIMOS!
-                    // Esto le dice a Stripe que use el producto y precio que ya configuraste en tu Dashboard.
-                    price: priceId,
-                    quantity: 1,
-                },
-            ],
-            mode: 'payment',
-            // URLs de redirección después del pago
-            success_url: `https://entrenadormental.netlify.app/success.html`,
-            cancel_url: `https://entrenadormental.netlify.app/la-calma-de-mama.html?payment=cancelled`,
+        const rutaArchivo = path.join(__dirname, 'clientes.json');
+        
+        let clientes = [];
+        // Si el archivo ya existe, leemos su contenido
+        if (fs.existsSync(rutaArchivo)) {
+            const contenido = fs.readFileSync(rutaArchivo, 'utf-8');
+            // Manejamos el caso en que el archivo esté vacío
+            clientes = contenido ? JSON.parse(contenido) : [];
+        }
+        
+        // Añadimos el nuevo registro al array
+        clientes.push(nuevoRegistro);
+        
+        // Escribimos el array completo de vuelta en el archivo, con formato legible
+        fs.writeFileSync(rutaArchivo, JSON.stringify(clientes, null, 2));
+        console.log('✅ Cliente guardado en clientes.json');
+
+
+        // --- PASO B: ENVIAR UN EMAIL DE NOTIFICACIÓN ---
+        const transporter = nodemailer.createTransport({
+            service: 'gmail',
+            auth: {
+                user: process.env.EMAIL_USER,
+                pass: process.env.EMAIL_PASS,
+            },
         });
 
-        // 5. DEVOLVEMOS LA SESIÓN CREADA AL FRONTEND
-        res.json(session);
+        const mailOptions = {
+            from: `"Notificación de Pago" <${process.env.EMAIL_USER}>`,
+            to: process.env.EMAIL_USER, // Te envías el email a ti mismo
+            subject: '¡Nuevo cliente interesado en "La Calma de Mamá"!',
+            text: `Tienes un nuevo cliente potencial:\n\nNombre: ${name}\nEmail: ${email}\nWhatsApp: ${whatsapp}\n\nHa iniciado el proceso de pago.`,
+            html: `<h1>¡Nuevo cliente potencial!</h1><p>Tienes un nuevo cliente interesado en "La Calma de Mamá":</p><ul><li><strong>Nombre:</strong> ${name}</li><li><strong>Email:</strong> ${email}</li><li><strong>WhatsApp:</strong> ${whatsapp}</li></ul><p>Ha iniciado el proceso de pago.</p>`,
+        };
+
+        await transporter.sendMail(mailOptions);
+        console.log('✅ Email de notificación enviado a ' + process.env.EMAIL_USER);
+
+
+        // --- PASO C: CREAR LA SESIÓN DE PAGO CON STRIPE ---
+        const session = await stripe.checkout.sessions.create({
+            payment_method_types: ['card'],
+            customer_email: email, // Pre-llena el email del cliente en Stripe
+            line_items: [{ price: priceId, quantity: 1 }],
+            mode: 'payment',
+            success_url: `https://entrenadormental.netlify.app/success.html`, // URL a la que redirige si el pago es exitoso
+            cancel_url: `https://entrenadormental.netlify.app/la-calma-de-mama.html?payment=cancelled`, // URL a la que redirige si el pago se cancela
+        });
+
+        // Devolvemos el ID de la sesión al frontend
+        res.json({ id: session.id });
 
     } catch (error) {
-        console.error("❌ Error al crear la sesión de Stripe:", error);
-        res.status(500).json({ error: { message: 'Error interno del servidor al crear la sesión de pago.' }});
+        console.error("❌ Error al procesar la solicitud:", error);
+        res.status(500).json({ error: { message: 'Error interno del servidor.' }});
     }
 });
-// --- FIN: LA RUTA CORREGIDA ---
 
-
-// 6. Iniciar el servidor
+// --- INICIO DEL SERVIDOR ---
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`🚀 Servidor corriendo en el puerto ${PORT}`);
